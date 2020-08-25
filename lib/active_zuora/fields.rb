@@ -1,5 +1,6 @@
 require 'active_zuora/fields/field'
 require 'active_zuora/fields/boolean_field'
+require 'active_zuora/fields/date_field'
 require 'active_zuora/fields/date_time_field'
 require 'active_zuora/fields/decimal_field'
 require 'active_zuora/fields/integer_field'
@@ -14,7 +15,7 @@ module ActiveZuora
 
     included do
       include ActiveModel::Dirty
-      delegate :fields, :field_names, :field?, :get_field, :get_field!, 
+      delegate :fields, :field_names, :field?, :get_field, :get_field!,
         :default_attributes, :to => 'self.class'
     end
 
@@ -51,7 +52,12 @@ module ActiveZuora
     end
 
     def clear_changed_attributes
-      changed_attributes.clear
+      if ActiveSupport.version.to_s.to_f >= 5.2
+        clear_changes_information
+      else
+        changed_attributes.clear
+      end
+
       # If we have any fields that are also Base objects,
       # clear their attributes as well.
       fields.each { |field| field.clear_changed_attributes(send(field.name)) }
@@ -96,10 +102,11 @@ module ActiveZuora
         field_is_array = options.delete(:array) || false
         # Create and register the field.
         field = case type
-          when :string then StringField.new(name, namespace, options)
-          when :boolean then BooleanField.new(name, namespace, options)
-          when :integer then IntegerField.new(name, namespace, options)
-          when :decimal then DecimalField.new(name, namespace, options)
+          when :string   then StringField.new(name, namespace, options)
+          when :boolean  then BooleanField.new(name, namespace, options)
+          when :integer  then IntegerField.new(name, namespace, options)
+          when :decimal  then DecimalField.new(name, namespace, options)
+          when :date     then DateField.new(name, namespace, options)
           when :datetime then DateTimeField.new(name, namespace, options)
           when :object
             class_name = options[:class_name] || nested_class_name(name.to_s.camelize)

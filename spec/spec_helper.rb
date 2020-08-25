@@ -5,7 +5,8 @@ require 'active_zuora'
 I18n.enforce_available_locales = true
 
 ActiveZuora.configure(
-  :log => ENV['DEBUG'],
+  :log => !!ENV['DEBUG'],
+  :pretty_print_xml => !!ENV['DEBUG'],
   :username => ENV['ZUORA_USER'],
   :password => ENV['ZUORA_PASS']
 )
@@ -20,6 +21,10 @@ def integration_test
   else
     $stderr.puts "Integration tests skipped because ZUORA_USER or ZUORA_PASS are not set."
   end
+end
+
+def now(_message)
+  yield
 end
 
 module Tenant

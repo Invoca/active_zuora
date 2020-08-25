@@ -16,6 +16,10 @@ require 'active_zuora/z_object'
 require 'active_zuora/subscribe'
 require 'active_zuora/amend'
 require 'active_zuora/generate'
+require 'active_zuora/billing_preview'
+require 'active_zuora/batch_subscribe'
+require 'active_zuora/collection_proxy'
+require 'active_zuora/lazy_attr'
 
 module ActiveZuora
 
@@ -28,6 +32,8 @@ module ActiveZuora
     SavonZuora.configure do |config|
       config.log = HTTPI.log = configuration[:log] || false
       config.log_level = configuration[:log_level] || :info
+      config.logger = configuration[:logger] if configuration[:logger]
+      config.logger.filter = configuration[:log_filters] || [:password, :SessionHeader]
       config.raise_errors = true
     end
     # Create a default connection on Base

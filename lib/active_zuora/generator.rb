@@ -8,6 +8,7 @@ module ActiveZuora
       @document = document
       @classes = []
       @class_nesting = options[:inside] || ActiveZuora
+      @class_nesting.const_set("CollectionProxy", CollectionProxy) unless @class_nesting.constants.include?(:CollectionProxy)
     end
 
     def generate_classes
@@ -29,6 +30,7 @@ module ActiveZuora
           # Skip the zObject base class, we define our own.
           next if class_name == "zObject"
 
+          class_name[0] = class_name[0].upcase
           zuora_class = Class.new
           @class_nesting.const_set(class_name, zuora_class)
           @classes << zuora_class
@@ -63,6 +65,9 @@ module ActiveZuora
             when "decimal"
               zuora_class.field field_name, :decimal,
                 :zuora_name => zuora_name, :array => is_array
+            when "date"
+              zuora_class.field field_name, :date,
+                :zuora_name => zuora_name, :array => is_array
             when "dateTime"
               zuora_class.field field_name, :datetime,
                 :zuora_name => zuora_name, :array => is_array
@@ -71,7 +76,7 @@ module ActiveZuora
                 :zuora_name => zuora_name, :array => is_array,
                 :class_name => zuora_class.nested_class_name(field_type.split(':').last)
             else
-              puts "Unkown field type: #{field_type}"
+              puts "Unknown field type: #{field_type}"
             end
           end # each element
 
@@ -117,12 +122,13 @@ module ActiveZuora
       nesting = @class_nesting
 
       customize 'Account' do
-        belongs_to :bill_to, :class_name => nested_class_name('Contact') if field? :bill_to
+        belongs_to :bill_to, :class_name => nested_class_name('Contact') if field? :bill_to_id
+        belongs_to :default_payment_method, :class_name => nested_class_name('PaymentMethod') if field? :default_payment_method_id
         if field? :parent_id
           belongs_to :parent, :class_name => nested_class_name('Account')
           has_many :children, :class_name => nested_class_name('Account'), :foreign_key => :parent_id, :inverse_of => :parent
         end
-        belongs_to :sold_to, :class_name => nested_class_name('Contact') if field? :sold_to
+        belongs_to :sold_to, :class_name => nested_class_name('Contact') if field? :sold_to_id
         validates :currency, :presence => true if field? :currency
         validates :name, :presence => true if field? :name
         validates :status, :presence => true if field? :status
@@ -154,6 +160,7 @@ module ActiveZuora
 
       customize 'Invoice' do
         include Generate
+# <<<<<<< HEAD
         # The body is excluded because the zuora api doesn't allow us to query multiple invoices if the body is included
         # in the result. More info here: https://github.com/sportngin/active_zuora/issues/38
         exclude_from_queries :regenerate_invoice_pdf, :body
@@ -164,6 +171,22 @@ module ActiveZuora
              zuora_invoice.body.presence or raise ApiError, "body is not present for #{self.name} with invoice_number '#{invoice_number}' and account_id '#{account_id}'"
           end
         end
+# =======
+#         include LazyAttr
+#         # The body field can only be accessed for a single invoice at a time, so
+#         # exclude it here to not break collections of invoices. The contents of
+#         # the body field will be lazy loaded in when needed.
+#         exclude_from_queries :regenerate_invoice_pdf, :body, :bill_run_id
+#         lazy_load :body
+#       end
+#
+#       customize 'InvoiceItem' do
+#         exclude_from_queries :product_rate_plan_charge_id
+#       end
+#
+#       customize 'BillingPreviewRequest' do
+#         include BillingPreview
+# >>>>>>> mainline/master
       end
 
       customize 'InvoiceItemAdjustment' do
@@ -172,16 +195,23 @@ module ActiveZuora
 
       customize 'Payment' do
         exclude_from_queries :applied_invoice_amount,
-          :gateway_option_data, :invoice_id, :invoice_number
+          :gateway_option_data, :invoice_id, :invoice_number, :invoice_payment_data
       end
 
       customize 'PaymentMethod' do
-        exclude_from_queries :ach_account_number, :credit_card_number,
-          :credit_card_security_code, :gateway_option_data, :skip_validation
+        exclude_from_queries :ach_account_number, :bank_transfer_account_number,
+          :credit_card_number, :credit_card_security_code, :gateway_option_data,
+          :second_token_id, :skip_validation, :token_id
+      end
+
+      customize 'ProductRatePlan' do
+        include LazyAttr
+        exclude_from_queries :active_currencies
+        lazy_load :active_currencies
       end
 
       customize 'ProductRatePlanCharge' do
-        exclude_from_queries :product_rate_plan_charge_tier_data
+        exclude_from_queries :product_rate_plan_charge_tier_data, :revenue_recognition_rule_name, :deferred_revenue_account, :recognized_revenue_account, :product_discount_apply_detail_data
       end
 
       customize 'Usage' do
@@ -189,12 +219,10 @@ module ActiveZuora
       end
 
       customize 'RatePlanCharge' do
-        exclude_from_queries :rollover_balance
-        # Can only use overageprice or price or includedunits or
-        # discountamount or discountpercentage in one query.
-        # We'll pick price.
+        include LazyAttr
         exclude_from_queries :overage_price, :included_units,
-          :discount_amount, :discount_percentage
+          :discount_amount, :discount_percentage, :rollover_balance, :price, :revenue_recognition_rule_name
+        lazy_load :price
       end
 
       customize 'Refund' do
