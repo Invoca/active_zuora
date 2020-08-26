@@ -160,10 +160,9 @@ module ActiveZuora
 
       customize 'Invoice' do
         include Generate
-# <<<<<<< HEAD
         # The body is excluded because the zuora api doesn't allow us to query multiple invoices if the body is included
         # in the result. More info here: https://github.com/sportngin/active_zuora/issues/38
-        exclude_from_queries :regenerate_invoice_pdf, :body
+        # exclude_from_queries :regenerate_invoice_pdf, :body
         class << self
           def invoice_body_for(account_id:, invoice_number:, status:)
              (zuora_invoice = select(:body).where(account_id: account_id, invoice_number: invoice_number, status: status).first) or
@@ -171,22 +170,21 @@ module ActiveZuora
              zuora_invoice.body.presence or raise ApiError, "body is not present for #{self.name} with invoice_number '#{invoice_number}' and account_id '#{account_id}'"
           end
         end
-# =======
-#         include LazyAttr
-#         # The body field can only be accessed for a single invoice at a time, so
-#         # exclude it here to not break collections of invoices. The contents of
-#         # the body field will be lazy loaded in when needed.
-#         exclude_from_queries :regenerate_invoice_pdf, :body, :bill_run_id
-#         lazy_load :body
-#       end
-#
-#       customize 'InvoiceItem' do
-#         exclude_from_queries :product_rate_plan_charge_id
-#       end
-#
-#       customize 'BillingPreviewRequest' do
-#         include BillingPreview
-# >>>>>>> mainline/master
+
+        include LazyAttr
+        # The body field can only be accessed for a single invoice at a time, so
+        # exclude it here to not break collections of invoices. The contents of
+        # the body field will be lazy loaded in when needed.
+        exclude_from_queries :regenerate_invoice_pdf, :body, :bill_run_id
+        lazy_load :body
+      end
+
+      customize 'InvoiceItem' do
+        exclude_from_queries :product_rate_plan_charge_id
+      end
+
+      customize 'BillingPreviewRequest' do
+        include BillingPreview
       end
 
       customize 'InvoiceItemAdjustment' do
