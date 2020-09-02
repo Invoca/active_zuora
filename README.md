@@ -9,21 +9,44 @@ This repostiory contains >= Version 2 of Active Zuora
 
 Version 1 can be found at https://github.com/sportngin/active_zuora_v1
 
+## Thread Safety
+2.0.X versions of Active Zuora are not thread safe. They depend on a version of [Savon](https://github.com/savonrb/savon) that is [does not work with threads](https://github.com/savonrb/savon/issues/259).
+
+As of 2.1.0  Active Zuora is now depending on a thread safe version of [Savon](https://github.com/savonrb/savon)
+
+
 ## Configuration
 
+```ruby
     ActiveZuora.configure(
       :username => 'user@example.com',
       :password => 'password'
     )
+```
 
-Enable SOAP logging to stderr or provide your own wsdl file.
+Enable SOAP logging to stderr, provide your own wsdl file or add custom
+fields to a list of filtered fields.
 
+```ruby
     ActiveZuora.configure(
       :username => 'user@example.com',
       :password => 'password',
       :log => true,
+      :log_filters => [:password, :SessionHeader, :mySecretCustomField1, :mySecretCustomField1], # Defaults to [:password, :SessionHeader]
       :wsdl => 'path/to/zuora.wsdl'
     )
+```
+Override the default endpoint or host loaded from the wsdl
+
+```
+ActiveZuora::Base.connection.soap_client.wsdl.endpoint.host = "www.zuora.com" if Rails.env.production?
+````
+
+To add custom headers to your Zuora requests, you can use the following pattern
+
+```
+ActiveZuora::Base.connection.custom_header = { 'X-Foo' => 'Bar' }
+```
 
 ## Defining Classes
 
@@ -33,7 +56,7 @@ You can auto-generate all your Zuora classes from the wsdl file.  It will genera
 
 By default, it will generate the classes inside the ActiveZuora module.  But you can specify a different nesting if you'd like.
 
-    ActiveZuora.generate_classes :under => SomeOtherModule
+    ActiveZuora.generate_classes :inside => SomeOtherModule
 
 Or, if you prefer, you can define your ZObjects or Complex Types manually.
 
@@ -146,6 +169,14 @@ You can also use a block to update your records, in case your updates depend on 
 You can also delete all records matching a query as well.  The method returns the amount of records deleted.
 
     ActiveZuora::Account.where(:status => "Draft").delete_all # 56
+
+## Batch Subscribe
+
+You can submit up to 50 subscribe requests on a single subscribe call per the Zuora documentation.  To batch subscribe requests, use the CollectionProxy to build a collection of subscribe requests, then call batch_subscribe
+
+    ActiveZuora::CollectionProxy.new([ActiveZuora::SubscribeRequest.new({account: {}, bill_to: {}, subscription_data:{}}), 
+                                      ActiveZuora::SubscribeRequest.new({account: {}, bill_to: {}, subscription_data:{}})]).batch_subscribe
+
 
 ## License
 

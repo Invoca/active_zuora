@@ -7,7 +7,10 @@ module ActiveZuora
 
     def initialize(zobject_class, selected_field_names=[:id])
       @zobject_class, @selected_field_names, @filters = zobject_class, selected_field_names, []
-      @order_attribute, @order_direction = :created_date, :asc
+
+      if field?(:created_date)
+        @order_attribute, @order_direction = :created_date, :asc
+      end
     end
 
     def dup
@@ -57,7 +60,7 @@ module ActiveZuora
       if relation.is_a?(Hash)
         where(relation)
       else
-        dup.tap do |dup| 
+        dup.tap do |dup|
           dup.filters.concat relation.filters
           dup.filters.uniq!
           dup.order_attribute = relation.order_attribute
@@ -120,7 +123,7 @@ module ActiveZuora
       # them until done.
       until query_response[:result][:done]
         query_response = zobject_class.connection.request(:query_more) do |soap|
-          soap.body = { :query_locator => response[:query_response][:result][:query_locator] }
+          soap.body = { :query_locator => query_response[:result][:query_locator] }
         end[:query_more_response]
         more_records = objectify_query_results(query_response[:result][:records])
         more_records.each(&:block) if block_given?
@@ -155,7 +158,7 @@ module ActiveZuora
     protected
 
     def method_missing(method, *args, &block)
-      # This is how the chaing can happen on class methods or named scopes on the 
+      # This is how the chaing can happen on class methods or named scopes on the
       # ZObject class.
       if Array.method_defined?(method)
         to_a.send(method, *args, &block)
@@ -219,11 +222,15 @@ module ActiveZuora
       # Sometimes Zuora will return only a single record, not in an array.
       results = [results] unless results.is_a?(Array)
       results.map do |attributes|
-        # Strip any noisy attributes from the results that have to do with 
+        # Strip any noisy attributes from the results that have to do with
         # SOAP namespaces.
         attributes.delete_if { |key, value| key.to_s.start_with? "@" }
         # Instantiate the zobject class, but don't track the changes.
-        zobject_class.new(attributes).tap { |record| record.clear_changed_attributes }
+        if ActiveSupport.version.to_s.to_f >= 5.2
+          zobject_class.new(attributes).tap { |record| record.clear_changes_information }
+        else
+          zobject_class.new(attributes).tap { |record| record.changed_attributes.clear }
+        end
       end
     end
 
@@ -248,6 +255,6 @@ end
 
 
 
-    
+
 
 
